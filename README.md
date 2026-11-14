@@ -50,6 +50,31 @@ Other starting points:
 Research, plans and reviews are written to `.copilot-tracking/` in your project. The folder name is
 kept from HVE Core so the files stay compatible with teammates who use it in Copilot.
 
+## Optional: GitHub, Azure DevOps and Microsoft 365 (MCP servers)
+
+Ten agents read or write issues, work items, pull requests or Microsoft 365 content through MCP
+servers. In Copilot some of these are built in; in Claude Code you add the ones you use. Everything
+else, including the RPI workflow, works without them.
+
+```text
+/hve-core:mcp-setup
+```
+
+It asks which servers to add and adds them to your Claude Code user config. Pass `project` to write a
+`.mcp.json` the team can commit instead.
+
+| Server | What it reaches | Sign-in |
+| --- | --- | --- |
+| `github` | Issues, pull requests, repos | Personal access token in the `GITHUB_PAT` environment variable |
+| `ado` | Azure DevOps work items, repos, pipelines | Microsoft account in the browser; needs your organization name |
+| `workiq` | Microsoft 365 meetings, email, documents | Work account; your Microsoft 365 admin must enable Work IQ |
+| `microsoft-docs` | Microsoft Learn documentation | None |
+| `figma` | Figma files (design-thinking export) | Figma account in the browser |
+
+The server names must match exactly, because the agents' tool lists use them. Tokens never go in
+`.mcp.json` or the chat: the GitHub entry reads `${GITHUB_PAT}` from your environment. The
+`outlook-drafter` agent uses a WorkIQ Mail server that HVE Core doesn't document, so it isn't covered.
+
 ## Update
 
 ```bash
@@ -66,14 +91,15 @@ Then rerun `/hve-core:setup` in your projects to refresh the rules.
 | 82 skills | Skills, run as `/hve-core:<name>` |
 | 57 custom agents | Subagents, or a main session with `claude --agent hve-core:<name>` |
 | 35 instructions files | Path-scoped rules, installed by `/hve-core:setup` |
+| MCP server configuration | Optional, added by `/hve-core:mcp-setup` |
 
 Not included: HVE Core's experimental skills and agents, its Copilot installer, and its VS Code
 canvases and extension.
 
 ## Limits
 
-- The Azure DevOps, GitHub and WorkIQ agents need those MCP servers set up in Claude Code under
-  the names `ado`, `github` and `workiq`. HVE Core's `.mcp.json.sample` has examples.
+- Agents that use GitHub, Azure DevOps or WorkIQ can't do those steps until you add the servers
+  (see above).
 - A few skills mention Copilot-only features such as canvases. A compatibility rule tells Claude how
   to map or skip them.
 - HVE Core changes often and calls itself patterns, not a stable dependency.
@@ -89,8 +115,9 @@ git add -A && git commit && git push
 ```
 
 The build prints a report of everything it skipped, dropped or could not map; read it before pushing.
-The plugin version includes the upstream commit (for example `3.2.2+0e5623a`), so each rebuild reaches
-users when they update. Add `--include-experimental` to convert the experimental pieces too. Release
+The plugin version is the upstream version, the upstream commit and the converter revision (for
+example `3.2.2+0e5623a.2`). Claude Code only delivers an update when the version changes, so bump
+`CONVERTER_REVISION` in `convert.py` whenever you change the converter's output. Add `--include-experimental` to convert the experimental pieces too. Release
 tags up to `hve-core-v3.3.101` use an older layout the converter doesn't read.
 
 | Copilot agent setting | Converted to |

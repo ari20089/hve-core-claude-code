@@ -9,6 +9,7 @@ Usage:
   agents/                    converted HVE Core agents
   skills/setup/              the /hve-core:setup skill, which installs the rules below
   skills/setup/rules/        path-scoped rules converted from *.instructions.md
+  skills/mcp-setup/          the /hve-core:mcp-setup skill, which adds optional MCP servers
 and prints a report of everything it changed, dropped, or could not map.
 
 Plugins cannot ship rules directly, so users run /hve-core:setup once per project
@@ -33,6 +34,8 @@ MARKETPLACE_NAME = "hve-core-claude-code"
 MARKETPLACE_OWNER = "ari20089"
 MARKETPLACE_REPO = "ari20089/hve-core-claude-code"
 SETUP_SKILL = "setup"
+# Bump whenever a converter change alters the generated plugin, so users receive it on update.
+CONVERTER_REVISION = 2
 RULES_DIR = PLUGIN_DIR / "skills" / SETUP_SKILL / "rules" / PLUGIN_NAME
 MARKER = ".generated-by-convert"
 DEFAULT_REF = "0e5623a16e06c5b1353bbf77ad4cba49db4c28b1"  # microsoft/hve-core main, 2026-11-14
@@ -383,6 +386,75 @@ Arguments: $ARGUMENTS
 Do not edit the copied files, and do not change anything else in the project.
 """
 
+MCP_SETUP_SKILL = "mcp-setup"
+MCP_SETUP_SKILL_MD = """---
+name: mcp-setup
+description: Add the MCP servers some HVE Core agents and skills need (GitHub, Azure DevOps, WorkIQ, Microsoft Learn docs, Figma) to Claude Code. Opt-in; asks which servers to add. Pass "project" to write a shareable .mcp.json instead of your user config.
+argument-hint: "[github] [ado] [workiq] [microsoft-docs] [figma] [project]"
+disable-model-invocation: true
+---
+
+# HVE Core MCP Setup
+
+Add only the MCP servers the user chooses. Everything in HVE Core that does not use these servers works
+without them.
+
+Arguments: $ARGUMENTS
+
+## Servers
+
+The names must be exactly these: the agents' tool lists use them (`mcp__github__...`, `mcp__ado__...`).
+
+| Name | What it reaches | Used by | Sign-in |
+| --- | --- | --- | --- |
+| `github` | GitHub issues, pull requests, repos | backlog-manager, github-backlog-executor, functional-planner, accessibility-planner, engagement-report-generator | Personal access token in the `GITHUB_PAT` environment variable |
+| `ado` | Azure DevOps work items, repos, pipelines, wikis, test plans | backlog-manager, ado-backlog-executor, functional-planner, accessibility-planner, engagement-report-generator | Microsoft account in the browser; needs the organization name |
+| `workiq` | Microsoft 365 meetings, email, documents | engagement-report-generator, meeting analysis, rai-planner | Work Microsoft 365 account; the tenant admin must enable Work IQ |
+| `microsoft-docs` | Microsoft Learn documentation | rpi-researcher, functional-planner, network-isa95-planner, incident-response | None |
+| `figma` | Figma files | dt-figma-export | Figma account in the browser |
+
+The `outlook-drafter` agent uses a separate WorkIQ Mail server that HVE Core does not document; this skill
+does not set it up.
+
+## Steps
+
+1. **Choose servers.** Use the servers named in the arguments. With none named, show the table above and ask
+   the user which to add (multi-select). Ask for the Azure DevOps organization name when `ado` is chosen: the
+   part after `dev.azure.com/`. It is not a secret.
+2. **Choose scope.** Default `user` (all of this user's projects). With the argument `project`, use
+   `project`: Claude Code writes `.mcp.json` in the project root, which the team can commit. It holds no
+   secrets, because the GitHub token stays in an environment variable.
+3. **Find the Claude Code CLI.** Use `claude` when `command -v claude` finds it. Otherwise use the newest
+   `~/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude`. When neither exists, show
+   the user the commands from step 5 to run themselves, and stop.
+4. **Check for existing servers.** Run `claude mcp get <name>` for each chosen server. If one exists, show its
+   configuration and ask before replacing it (`claude mcp remove --scope <scope> <name>` first).
+5. **Add each server** with `claude mcp add-json --scope <scope> <name> '<json>'`, one command per server:
+   * `github`: `{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer ${GITHUB_PAT}"}}`
+   * `ado`: `{"type":"stdio","command":"npx","args":["-y","@azure-devops/mcp","<organization>"]}`
+   * `workiq`: `{"type":"stdio","command":"npx","args":["-y","@microsoft/workiq@1.0.0","mcp"]}`
+   * `microsoft-docs`: `{"type":"http","url":"https://learn.microsoft.com/api/mcp"}`
+   * `figma`: `{"type":"http","url":"https://mcp.figma.com/mcp"}`
+
+   Write `${GITHUB_PAT}` literally: Claude Code reads the variable when it connects.
+6. **Never ask for, accept, or write a token in the conversation or in any file.** If the user pastes one,
+   tell them to revoke it on GitHub and create a new one.
+7. **Verify** with `claude mcp list` and report each chosen server's status.
+8. **Tell the user what is left**, only for the servers added:
+   * `github`: create a token at https://github.com/settings/personal-access-tokens (fine-grained: the
+     repositories to use, with Issues and Pull requests read/write and Contents read; or a classic token with
+     `repo`). Add `export GITHUB_PAT=<token>` to their shell profile (`~/.zshrc` on macOS), then restart the
+     terminal or VS Code. Until then GitHub shows "Missing environment variables: GITHUB_PAT".
+   * `ado`: the first Azure DevOps call opens a browser sign-in. `npx` downloads the package on first start,
+     which can take a minute.
+   * `workiq`: an AADSTS650052 error means the organization has not enabled Work IQ; only a Microsoft 365
+     admin can fix it. Microsoft's license terms are accepted on the first query.
+   * `figma`: run `/mcp`, choose `figma`, and sign in.
+   * All: start a new Claude Code session (or reload the VS Code window) to load the servers.
+
+Change nothing else in the user's configuration.
+"""
+
 PLUGIN_README = """# HVE Core for Claude Code
 
 Generated by `convert.py` from [microsoft/hve-core](https://github.com/microsoft/hve-core)
@@ -401,6 +473,9 @@ claude plugin install {plugin}@{marketplace}
 
 Then run `/{plugin}:setup` once in each project. It copies HVE Core's coding standards and
 `.copilot-tracking` conventions into `.claude/rules/{plugin}/` (plugins cannot carry rules themselves).
+
+Ten agents also use GitHub, Azure DevOps or WorkIQ (Microsoft 365) through MCP servers. Run
+`/{plugin}:mcp-setup` to add the ones you need; everything else works without them.
 
 Skills run as `/{plugin}:<name>`, for example `/{plugin}:rpi-research` or `/{plugin}:git-commit`.
 Agents run as subagents, or as the main session with `claude --agent {plugin}:<name>`.
@@ -424,14 +499,18 @@ def build(args):
     skills = convert_skills(manifest, args.include_experimental, report)
     agents = convert_agents(manifest, args.include_experimental, skills, report)
     rules = convert_rules(manifest, args.include_experimental, report)
-    if SETUP_SKILL in skills:
-        sys.exit(f"Upstream now has a skill named {SETUP_SKILL!r}; rename SETUP_SKILL in convert.py.")
+    for own in (SETUP_SKILL, MCP_SETUP_SKILL):
+        if own in skills:
+            sys.exit(f"Upstream now has a skill named {own!r}; rename it in convert.py.")
     (PLUGIN_DIR / "skills" / SETUP_SKILL / "SKILL.md").write_text(
         SETUP_SKILL_MD.replace("@PLUGIN@", PLUGIN_NAME).replace("@MARKER@", MARKER), encoding="utf-8")
+    (PLUGIN_DIR / "skills" / MCP_SETUP_SKILL).mkdir()
+    (PLUGIN_DIR / "skills" / MCP_SETUP_SKILL / "SKILL.md").write_text(MCP_SETUP_SKILL_MD, encoding="utf-8")
     commit = subprocess.run(["git", "-C", str(UPSTREAM), "rev-parse", "--short", "HEAD"],
                             capture_output=True, text=True).stdout.strip()
-    # Upstream keeps one version across many commits; add the commit so every rebuild reaches users.
-    version = f"{manifest['version']}+{commit}"
+    # Upstream keeps one version across many commits, so the version carries the upstream commit and this
+    # converter's revision: every rebuild that changes the output reaches users when they update.
+    version = f"{manifest['version']}+{commit}.{CONVERTER_REVISION}"
 
     shutil.copy(UPSTREAM / "LICENSE", PLUGIN_DIR / "LICENSE")
     if (UPSTREAM / "THIRD-PARTY-NOTICES").exists():
@@ -462,13 +541,13 @@ def build(args):
     (ROOT / ".claude-plugin" / "marketplace.json").write_text(json.dumps(marketplace, indent=2) + "\n")
 
     (PLUGIN_DIR / "README.md").write_text(PLUGIN_README.format(
-        version=manifest["version"], commit=commit, skills=len(skills) + 1, agents=len(agents), plugin=PLUGIN_NAME,
+        version=manifest["version"], commit=commit, skills=len(skills) + 2, agents=len(agents), plugin=PLUGIN_NAME,
         marketplace=MARKETPLACE_NAME, repo=MARKETPLACE_REPO,
         agent_list="\n".join(f"| `{PLUGIN_NAME}:{s}` | {d} |" for s, d in sorted(agents.items())),
     ), encoding="utf-8")
     report.print()
     print(f"\nBuilt {PLUGIN_NAME} {version} from {args.ref} ({commit}): "
-          f"{len(skills)} skills (+1 setup skill), {len(agents)} agents, {rules} rules (+1 compatibility rule).")
+          f"{len(skills)} skills (+2 setup skills), {len(agents)} agents, {rules} rules (+1 compatibility rule).")
 
 
 def main():

@@ -5,7 +5,7 @@ version 3.2.2 (commit `0e5623a`). Do not edit by hand; rerun the converter inste
 
 HVE Core is Microsoft's agentic SDLC framework: Research, Plan, Implement, Review (RPI), code review,
 security, privacy, accessibility, responsible AI, project planning, design thinking and more.
-This plugin carries 83 skills and 57 agents.
+This plugin carries 84 skills and 57 agents.
 
 Install from the repository that holds this marketplace:
 
@@ -16,6 +16,9 @@ claude plugin install hve-core@hve-core-claude-code
 
 Then run `/hve-core:setup` once in each project. It copies HVE Core's coding standards and
 `.copilot-tracking` conventions into `.claude/rules/hve-core/` (plugins cannot carry rules themselves).
+
+Ten agents also use GitHub, Azure DevOps or WorkIQ (Microsoft 365) through MCP servers. Run
+`/hve-core:mcp-setup` to add the ones you need; everything else works without them.
 
 Skills run as `/hve-core:<name>`, for example `/hve-core:rpi-research` or `/hve-core:git-commit`.
 Agents run as subagents, or as the main session with `claude --agent hve-core:<name>`.
