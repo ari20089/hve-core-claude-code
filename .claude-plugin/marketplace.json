@@ -1,0 +1,16 @@
+{
+  "name": "hve-core-claude-code",
+  "owner": {
+    "name": "ari20089"
+  },
+  "metadata": {
+    "description": "HVE Core (microsoft/hve-core) converted for Claude Code. Unofficial."
+  },
+  "plugins": [
+    {
+      "name": "hve-core",
+      "source": "./plugins/hve-core",
+      "description": "HVE Core 3.2.2 (microsoft/hve-core) converted for Claude Code: agentic SDLC skills and agents (RPI, code review, security, planning, and more)."
+    }
+  ]
+}

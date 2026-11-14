@@ -1,0 +1,21 @@
+{
+  "name": "hve-core",
+  "displayName": "HVE Core",
+  "version": "3.2.2+0e5623a",
+  "description": "HVE Core 3.2.2 (microsoft/hve-core) converted for Claude Code: agentic SDLC skills and agents (RPI, code review, security, planning, and more).",
+  "author": {
+    "name": "Microsoft (converted locally)",
+    "url": "https://github.com/microsoft/hve-core"
+  },
+  "homepage": "https://github.com/microsoft/hve-core",
+  "repository": "https://github.com/microsoft/hve-core",
+  "license": "MIT",
+  "keywords": [
+    "hve",
+    "hve-core",
+    "rpi",
+    "sdlc",
+    "agents",
+    "skills"
+  ]
+}
